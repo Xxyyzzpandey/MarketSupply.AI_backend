@@ -1,20 +1,21 @@
 import mongoose from "mongoose";
 
 const LeadSchema = new mongoose.Schema({
-  requestId: { type: mongoose.Schema.Types.ObjectId, ref: 'SourcingRequest', required: true },
-  wholesalerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Wholesaler', required: true },
-  
+  requestId: { type: mongoose.Schema.Types.ObjectId, required: true },
+  wholesalerId: { type: mongoose.Schema.Types.ObjectId, ref: 'wholesaler', required: true },
+  shortCode: { type: String, required: true, unique: true },
+  buyerInfo: {
+    name: { type: String, required: true },
+    phone: { type: String, required: true }
+  },
   status: { 
     type: String, 
     enum: ['pending', 'accepted', 'rejected'], 
     default: 'pending' 
   },
-  
-  // Track when the wholesaler clicked the WhatsApp link
   acceptedAt: Date,
-  
-  // To prevent double-charging or spam
-  isPaid: { type: Boolean, default: false } 
+  isPaid: { type: Boolean, default: false },
+  createdAt: { type: Date, default: Date.now }
 });
 
 export default mongoose.model("Lead", LeadSchema);

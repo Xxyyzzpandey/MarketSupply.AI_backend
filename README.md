@@ -24,7 +24,7 @@ This is the core API for Marketplace.ai. It handles vector-based supplier matchi
 
 ### 2. Clone and Install
 ```bash
-git clone https://github.com/Xxyyzzpandey/MarketSupply.AI_backend
+git clone https://github.com/Xxyyzzpandey/MarketSupply.AI_backend.git
 cd backend
 npm install
 

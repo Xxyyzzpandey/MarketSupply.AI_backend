@@ -1,6 +1,6 @@
 import { Router } from "express";
 import Wholesaler from "../models/sellerModel.js";
-import { generateVector } from "../utils/aiHelper.js"; // Import the helper
+import { generateVector } from "../utils/aiHelper.js"; 
 
 const router = Router();
 

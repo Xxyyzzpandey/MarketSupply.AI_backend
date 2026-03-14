@@ -1,12 +1,12 @@
-import mongoose from "mongoose";
+import mongoose from 'mongoose';
 
 const UserSchema = new mongoose.Schema({
-  name: { type: String, required: true },
-  email: { type: String, unique: true, required: true },
-  password: { type: String, required: true }, // Hashed
-  whatsappNumber: { type: String, required: true },
-  companyName: String,
+  firstName: { type: String, required: true },
+  lastName: { type: String, required: true },
+  whatsappNumber: { type: String, required: true, unique: true }, 
+  password: { type: String, required: true },
+  role: { type: String, default: 'buyer' }, // Default to normal user
   createdAt: { type: Date, default: Date.now }
 });
 
-module.exports = mongoose.model('User', UserSchema);
+export default mongoose.model("User", UserSchema);

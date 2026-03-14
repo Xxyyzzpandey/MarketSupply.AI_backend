@@ -253,7 +253,8 @@ import Lead from "../models/leadSchema.js";
 import { generateVector } from "../utils/aiHelper.js";
 import dotenv from "dotenv";
 import mongoose from "mongoose";
-import crypto from "crypto"; // Added for shortCode generation
+import crypto from "crypto"; 
+import SourcingRequest from "../models/sourcingModel.js"
 
 dotenv.config();
 
@@ -271,20 +272,36 @@ const sendWhatsApp = async (to, body) => {
 router.post("/searchProduct", async (req, res) => {
   try {
     const { userPrompt, buyerInfo } = req.body;
+    console.log(req.body);
+    if (!buyerInfo || !buyerInfo.id) {
+        return res.status(400).json({ 
+            success: false, 
+            message: "Buyer information with a valid ID is required." 
+        });
+    }
 
-    // STEP 1: PARSE + EMBED
+    // 1. Parse + Embed
     const [parseResult, userVector] = await Promise.all([
       groq.chat.completions.create({
-        messages: [{ role: "user", content: `Extract JSON: {"category": "string", "item": "string", "qty": number, "specs": "string"}. User request: "${userPrompt}"` }],
+        messages: [{ role: "user", content: `Extract JSON: {"category": "string", "item": "string", "quantity": number, "specifications": "string"}. User request: "${userPrompt}"` }],
         model: "llama-3.3-70b-versatile",
         response_format: { type: "json_object" },
       }),
       generateVector(userPrompt)
     ]);
-
+     console.log("parsed result by llm ",parseResult.choices[0].message)
     const specs = JSON.parse(parseResult.choices[0].message.content);
 
-    // STEP 2: VECTOR SEARCH
+    // 2. CREATE REQUEST (Source of Truth)
+    // This allows you to track buyer history and request status easily
+    const newRequest = await SourcingRequest.create({
+      buyerId: buyerInfo.id,
+      originalPrompt: userPrompt,
+      structuredData: specs, // Stores the item, qty, and specs
+      status: 'notified'
+    });
+
+    // 3. Vector Search
     const potentialSuppliers = await Wholesaler.aggregate([
       {
         $vectorSearch: {
@@ -299,47 +316,39 @@ router.post("/searchProduct", async (req, res) => {
 
     if (!potentialSuppliers.length) return res.status(200).json({ success: false, message: "No match." });
 
-    // STEP 3: GROQ RANKING
-    const rankingPrompt = `Buyer: ${JSON.stringify(specs)}. Suppliers: ${JSON.stringify(potentialSuppliers.map(s => ({id: s._id, desc: s.description})))}. Return ONLY top 3 IDs as JSON array: ["id1", "id2"]`;
-
+    // 4. Groq Ranking
+    const rankingPrompt = `Buyer needs: ${JSON.stringify(specs)}. Suppliers: ${JSON.stringify(potentialSuppliers.map(s => ({id: s._id, desc: s.description}))) }. Return ONLY a JSON array of top 3 supplier IDs.`;
     const rankingResult = await groq.chat.completions.create({
       messages: [{ role: "user", content: rankingPrompt }],
       model: "llama-3.3-70b-versatile",
       response_format: { type: "json_object" },
     });
 
-    const topSupplierIdsRaw = JSON.parse(rankingResult.choices[0].message.content);
-    const finalIds = Array.isArray(topSupplierIdsRaw) ? topSupplierIdsRaw : Object.values(topSupplierIdsRaw)[0];
+    const finalIds = Object.values(JSON.parse(rankingResult.choices[0].message.content))[0];
 
-    // STEP 4: CREATE LEADS + NOTIFY
-    const currentRequestId = new mongoose.Types.ObjectId(); 
-
+    // 5. Create Leads referencing the newRequest._id
     await Promise.all(finalIds.map(async (id) => {
       const seller = await Wholesaler.findById(id);
-      console.log(seller.description)
       if (!seller) return;
 
-      const shortCode = generateShortCode(); // Generate unique 4-char code
+      const shortCode = generateShortCode();
 
       await Lead.create({ 
         buyerInfo, 
         wholesalerId: id, 
-        requestId: currentRequestId, 
-        shortCode: shortCode, // Make sure your model has this field
-        status: "pending", 
-        details: specs 
+        requestId: newRequest._id, // Link to the SourcingRequest
+        shortCode, 
+        status: "pending" 
       });
 
-      const message = `*New Lead Alert!* 📦\n\nHello ${seller.businessName}, a buyer wants: *${specs.item}* (${specs.qty} units).\n\nReply *YES ${shortCode}* to accept and get contact details.`;
-      
+      const message = `*New Lead Alert!* 📦\n\nHello ${seller.businessName}, a buyer wants: *${specs.item}*.\n\nReply *YES ${shortCode}* to accept.`;
       await sendWhatsApp(seller.whatsappNumber, message);
     }));
 
     return res.json({ 
       success: true, 
-      requestId: currentRequestId, 
-      sellers:finalIds,
-      message: "Leads generated and sellers notified via WhatsApp."
+      requestId: newRequest._id, 
+      message: "Leads generated and sellers notified." 
     });
 
   } catch (error) {

@@ -10,6 +10,7 @@ import whatsappWebhook from "../routes/whatsappWebhook.js"
 import normalUsersignin from "../routes/normaluserSignin.js"
 import Sellersignin from "../routes/Sellersignin.js";
 import userSignup from "../routes/NormalUserSignup.js"
+import leadRoute from "../routes/leadRoute.js"
 
 dotenv.config();
 
@@ -30,6 +31,14 @@ app.use((req, res, next) => {
 });
 
 app.get("/", async(req , res)=>{console.log("working")});
+app.use("/api",searchProduct);
+app.use("/seller",sellersignupRouter);
+app.use("/addseller",addSellerRouter);
+app.use("/whatsappWebhook",whatsappWebhook);
+app.use("/seller",Sellersignin);
+app.use("/user",normalUsersignin)
+app.use("/normalUser",userSignup);
+app.use("/leads",leadRoute);
 
 
 
